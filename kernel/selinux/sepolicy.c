@@ -8,6 +8,9 @@
 #include <linux/printk.h>
 #include <linux/slab.h>
 #include <linux/version.h>
+#include <linux/flex_array.h>
+#include "security/selinux/include/objsec.h"
+#include "security/selinux/include/security.h"
 
 #include "sepolicy.h"
 #include "../klog.h" // IWYU pragma: keep
@@ -1205,7 +1208,7 @@ static void free_class_datum_partially(struct policydb *db)
         kfree(db->class_val_to_struct);
     }
 
-    if (db->p_classes.table.htable) {
+    if (db->p_classes.table->htable) {
         hashtab_map(&db->p_classes.table,
                     destroy_class_datum_partially_callback, NULL);
         hashtab_destroy(&db->p_classes.table);
@@ -1256,7 +1259,9 @@ static int copy_avtab(struct avtab *new_avtab, struct avtab *old_avtab)
         return ret;
 
     for (i = 0; i < old_avtab->nslot; i++) {
-        n = old_avtab->htable[i];
+        struct avtab_node **n_ptr = flex_array_get(old_avtab->htable, i);
+        n = (n_ptr) ? *n_ptr : NULL;
+
         while (n) {
             p = avtab_insert_nonunique(new_avtab, &n->key, &n->datum);
             if (!p) {
@@ -1318,7 +1323,7 @@ static void free_role_datum_partially(struct policydb *db)
     if (db->role_val_to_struct) {
         kfree(db->role_val_to_struct);
     }
-    if (db->p_roles.table.htable) {
+    if (db->p_roles.table->htable) {
         hashtab_map(&db->p_roles.table, destroy_role_datum_partially_callback,
                     NULL);
         hashtab_destroy(&db->p_roles.table);
@@ -1363,18 +1368,22 @@ static void free_type_datum_partially(struct policydb *db)
     u32 sz = db->p_types.nprim, i;
     if (db->type_attr_map_array) {
         for (i = 0; i < sz; i++) {
-            ebitmap_destroy(&db->type_attr_map_array[i]);
+            struct ebitmap *node = flex_array_get(db->type_attr_map_array, i);
+            if (node) ebitmap_destroy(node);
         }
 
-        kvfree(db->type_attr_map_array);
+        flex_array_free(db->type_attr_map_array);
+        db->type_attr_map_array = NULL;
     }
 
-    if (db->type_val_to_struct) {
-        kvfree(db->type_val_to_struct);
+    if (db->type_val_to_struct_array) {
+        flex_array_free(db->type_val_to_struct_array);
+        db->type_val_to_struct_array = NULL;
     }
 
     if (db->sym_val_to_name[SYM_TYPES]) {
-        kvfree(db->sym_val_to_name[SYM_TYPES]);
+        flex_array_free(db->sym_val_to_name[SYM_TYPES]);
+        db->sym_val_to_name[SYM_TYPES] = NULL;
     }
 
     hashtab_destroy(&db->p_types.table);
@@ -1385,59 +1394,50 @@ static int copy_type_datum_partially(struct policydb *new_db,
 {
     int ret = -ENOMEM;
     u32 sz = new_db->p_types.nprim, i;
-    struct ebitmap *new_type_attr_map_array;
-    struct type_datum **new_type_val_to_struct;
-    char **new_sym_val_to_name_types;
+    void *old_ptr;
 
     new_db->type_attr_map_array = NULL;
-    new_db->type_val_to_struct = NULL;
+    new_db->type_val_to_struct_array = NULL;
     new_db->sym_val_to_name[SYM_TYPES] = NULL;
     memset(&new_db->p_types.table, 0, sizeof(new_db->p_types.table));
 
-    // ======== type_attr_map_array ========
+    // ======== type_attr_map_array (flex_array) ========
+    new_db->type_attr_map_array = flex_array_alloc(sizeof(struct ebitmap), sz, GFP_KERNEL | __GFP_ZERO);
+    if (!new_db->type_attr_map_array) goto out;
 
-    new_type_attr_map_array = kvcalloc(sz, sizeof(struct ebitmap), GFP_KERNEL);
-
-    if (!new_type_attr_map_array) {
-        goto out;
-    }
-
-    new_db->type_attr_map_array = new_type_attr_map_array;
     for (i = 0; i < sz; i++) {
-        ret = ebitmap_cpy(&new_db->type_attr_map_array[i],
-                          &old_db->type_attr_map_array[i]);
-        if (ret < 0)
-            goto out;
+        struct ebitmap *new_node = flex_array_get(new_db->type_attr_map_array, i);
+        struct ebitmap *old_node = flex_array_get(old_db->type_attr_map_array, i);
+        if (new_node && old_node) {
+            ret = ebitmap_cpy(new_node, old_node);
+            if (ret < 0) goto out;
+        }
     }
 
-    // ======== type_val_to_struct ========
-    ret = -ENOMEM;
+    // ======== type_val_to_struct_array (flex_array) ========
+    new_db->type_val_to_struct_array = flex_array_alloc(sizeof(struct type_datum *), sz, GFP_KERNEL | __GFP_ZERO);
+    if (!new_db->type_val_to_struct_array) goto out;
 
-    new_type_val_to_struct =
-        kvcalloc(sz, sizeof(*new_db->type_val_to_struct), GFP_KERNEL);
-    if (!new_type_val_to_struct) {
-        goto out;
+    for (i = 0; i < sz; i++) {
+        old_ptr = flex_array_get_ptr(old_db->type_val_to_struct_array, i);
+        if (old_ptr) {
+            flex_array_put_ptr(new_db->type_val_to_struct_array, i, old_ptr, GFP_KERNEL);
+        }
     }
-    new_db->type_val_to_struct = new_type_val_to_struct;
-    memcpy(new_db->type_val_to_struct, old_db->type_val_to_struct,
-           sz * sizeof(*new_db->type_val_to_struct));
 
-    // ======== sym_val_to_name[SYM_TYPES] ========
+    // ======== sym_val_to_name[SYM_TYPES] (flex_array) ========
+    new_db->sym_val_to_name[SYM_TYPES] = flex_array_alloc(sizeof(char *), sz, GFP_KERNEL | __GFP_ZERO);
+    if (!new_db->sym_val_to_name[SYM_TYPES]) goto out;
 
-    new_sym_val_to_name_types =
-        kvcalloc(sz, sizeof(*new_db->sym_val_to_name[SYM_TYPES]), GFP_KERNEL);
-    if (!new_sym_val_to_name_types)
-        goto out;
-    new_db->sym_val_to_name[SYM_TYPES] = new_sym_val_to_name_types;
-    memcpy(new_db->sym_val_to_name[SYM_TYPES],
-           old_db->sym_val_to_name[SYM_TYPES],
-           sz * sizeof(*new_db->sym_val_to_name[SYM_TYPES]));
-
-    // ======== p_types ========
+    for (i = 0; i < sz; i++) {
+        old_ptr = flex_array_get_ptr(old_db->sym_val_to_name[SYM_TYPES], i);
+        if (old_ptr) {
+            flex_array_put_ptr(new_db->sym_val_to_name[SYM_TYPES], i, old_ptr, GFP_KERNEL);
+        }
+    }
 
     ret = shallow_copy_hashtab(&new_db->p_types.table, &old_db->p_types.table);
-    if (ret < 0)
-        goto out;
+    if (ret < 0) goto out;
 
     return 0;
 out:
@@ -1474,7 +1474,7 @@ static int copy_filename_trans(struct policydb *new_db, struct policydb *old_db)
 
 // ======== sepolicy ========
 
-void ksu_destroy_sepolicy(struct selinux_policy *pol)
+void ksu_destroy_sepolicy(struct selinux_ss *pol)
 {
     if (!pol)
         return;
@@ -1496,15 +1496,16 @@ void ksu_destroy_sepolicy(struct selinux_policy *pol)
     kfree(pol);
 }
 
-struct selinux_policy *ksu_dup_sepolicy(struct selinux_policy *old_pol)
+struct selinux_ss *ksu_dup_sepolicy(struct selinux_ss *old_pol)
 {
     int ret;
-    struct selinux_policy *new_pol =
+    struct selinux_ss *new_pol =
         kmemdup(old_pol, sizeof(*old_pol), GFP_KERNEL);
     if (!new_pol) {
         return NULL;
     }
-    struct policydb *new_db = &new_pol->policydb, *old_db = &old_pol->policydb;
+    struct policydb *new_db = &new_pol->policydb;
+    struct policydb *old_db = &old_pol->policydb;
 
     ret = copy_class_datum_partially(new_db, old_db);
     if (ret < 0) {

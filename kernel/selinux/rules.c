@@ -43,7 +43,7 @@ static void reset_avc_cache()
 
 void apply_kernelsu_rules(void)
 {
-	struct selinux_policy *pol, *old_pol = selinux_state.policy;
+	struct selinux_ss *pol, *old_pol = selinux_state.policy;
 	struct policydb *db;
 
 	if (!getenforce()) {
@@ -501,7 +501,7 @@ static int apply_one_sepolicy_cmd(struct policydb *db,
 
 int handle_sepolicy(void __user *user_data, u64 data_len)
 {
-    struct selinux_policy *pol, *old_pol;
+    struct selinux_ss *pol, *old_pol;
     struct policydb *db;
     struct sepol_batch_cursor cursor;
     u8 *payload;

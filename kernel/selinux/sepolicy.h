@@ -4,10 +4,11 @@
 #include <linux/types.h>
 
 #include "ss/policydb.h"
+#include "ss/services.h"
 
-struct selinux_policy *ksu_dup_sepolicy(struct selinux_policy *old_pol);
+struct selinux_ss *ksu_dup_sepolicy(struct selinux_ss *old_pol);
 
-void ksu_destroy_sepolicy(struct selinux_policy *orig);
+void ksu_destroy_sepolicy(struct selinux_ss *orig);
 
 // Operation on types
 bool ksu_type(struct policydb *db, const char *name, const char *attr);
