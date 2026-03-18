@@ -990,7 +990,7 @@ static int ksu_handle_fd_request(void __user *arg)
 	tw->outp = (int __user *)arg;
 	tw->cb.func = ksu_install_fd_tw_func;
 
-	if (task_work_add(current, &tw->cb, TWA_RESUME)) {
+	if (task_work_add(current, &tw->cb, true)) {
 		kfree(tw);
 		pr_warn("install fd add task_work failed\n");
 		return -EINVAL;

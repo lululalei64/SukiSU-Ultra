@@ -80,7 +80,7 @@ static void ksu_handle_extra_susfs_work(void)
 
     tw->cb.func = susfs_handle_setuid_tw_func;
 
-    int err = task_work_add(current, &tw->cb, TWA_RESUME);
+    int err = task_work_add(current, &tw->cb, true);
     if (err) {
         kfree(tw);
         pr_err("susfs: Failed adding task_work 'susfs_handle_setuid_tw', err: %d\n", err);
@@ -101,7 +101,7 @@ static void do_install_manager_fd(void)
 		return;
 
 	cb->func = ksu_install_manager_fd_tw_func;
-	if (task_work_add(current, cb, TWA_RESUME)) {
+	if (task_work_add(current, cb, true)) {
 		kfree(cb);
 		pr_warn("install manager fd add task_work failed\n");
 	}
