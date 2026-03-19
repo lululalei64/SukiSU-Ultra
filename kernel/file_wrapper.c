@@ -90,25 +90,6 @@ static ssize_t ksu_wrapper_write_iter(struct kiocb *iocb, struct iov_iter *iovi)
 }
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
-static int ksu_wrapper_iopoll(struct kiocb *kiocb, struct io_comp_batch *icb,
-			      unsigned int v)
-{
-	struct ksu_file_wrapper *data = kiocb->ki_filp->private_data;
-	struct file *orig = data->orig;
-	kiocb->ki_filp = orig;
-	return orig->f_op->iopoll(kiocb, icb, v);
-}
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
-static int ksu_wrapper_iopoll(struct kiocb *kiocb, bool spin)
-{
-	struct ksu_file_wrapper *data = kiocb->ki_filp->private_data;
-	struct file *orig = data->orig;
-	kiocb->ki_filp = orig;
-	return orig->f_op->iopoll(kiocb, spin);
-}
-#endif
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0)
 static int ksu_wrapper_iterate(struct file *fp, struct dir_context *dc)
 {
@@ -357,31 +338,6 @@ static ssize_t ksu_wrapper_copy_file_range(struct file *file_in, loff_t pos_in,
 }
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
-// no REMAP_FILE_DEDUP: use file_in
-// https://cs.android.com/android/kernel/superproject/+/common-android-mainline:common/fs/read_write.c;l=1598-1599;drc=398da7defe218d3e51b0f3bdff75147e28125b60
-// https://cs.android.com/android/kernel/superproject/+/common-android-mainline:common/fs/remap_range.c;l=403-404;drc=398da7defe218d3e51b0f3bdff75147e28125b60
-// REMAP_FILE_DEDUP: use file_out
-// https://cs.android.com/android/kernel/superproject/+/common-android-mainline:common/fs/remap_range.c;l=483-484;drc=398da7defe218d3e51b0f3bdff75147e28125b60
-static loff_t ksu_wrapper_remap_file_range(struct file *file_in, loff_t pos_in,
-					   struct file *file_out,
-					   loff_t pos_out, loff_t len,
-					   unsigned int remap_flags)
-{
-	if (remap_flags & REMAP_FILE_DEDUP) {
-		struct ksu_file_wrapper *data = file_out->private_data;
-		struct file *orig = data->orig;
-		return orig->f_op->remap_file_range(file_in, pos_in, orig,
-						    pos_out, len, remap_flags);
-	} else {
-		struct ksu_file_wrapper *data = file_in->private_data;
-		struct file *orig = data->orig;
-		return orig->f_op->remap_file_range(orig, pos_in, file_out,
-						    pos_out, len, remap_flags);
-	}
-}
-#endif
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
 static int ksu_wrapper_fadvise(struct file *fp, loff_t off1, loff_t off2,
 			       int flags)
@@ -428,9 +384,6 @@ static struct ksu_file_wrapper *ksu_create_file_wrapper(struct file *fp)
 	p->ops.write_iter =
 		fp->f_op->write_iter ? ksu_wrapper_write_iter : NULL;
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
-	p->ops.iopoll = fp->f_op->iopoll ? ksu_wrapper_iopoll : NULL;
-#endif
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0)
 	p->ops.iterate = fp->f_op->iterate ? ksu_wrapper_iterate : NULL;
 #endif
@@ -473,11 +426,6 @@ static struct ksu_file_wrapper *ksu_create_file_wrapper(struct file *fp)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
 	p->ops.copy_file_range =
 		fp->f_op->copy_file_range ? ksu_wrapper_copy_file_range : NULL;
-#endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
-	p->ops.remap_file_range = fp->f_op->remap_file_range ?
-					  ksu_wrapper_remap_file_range :
-					  NULL;
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
 	p->ops.fadvise = fp->f_op->fadvise ? ksu_wrapper_fadvise : NULL;
