@@ -24,6 +24,7 @@ obj-$(CONFIG_KPM) += kpm/
 
 kernelsu-objs := $(ksu_obj-y)
 
+ccflags-y += -I$(srctree)
 ccflags-y += -I$(srctree)/security/selinux -I$(srctree)/security/selinux/include
 ccflags-y += -I$(objtree)/security/selinux -include $(srctree)/include/uapi/asm-generic/errno.h
 
