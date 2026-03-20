@@ -215,7 +215,7 @@ do_umount:
 
 	ksu_handle_extra_susfs_work();
 
-	susfs_set_current_proc_umounted();
+	susfs_set_current_non_root_user_app_proc();
 
 	return 0;
 }

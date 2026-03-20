@@ -475,7 +475,7 @@ static int do_manage_mark(void __user *arg)
 		cmd.result = (u32)ret;
 		break;
 #else
-		if (susfs_is_current_proc_umounted()) {
+		if (susfs_is_current_non_root_user_app_proc()) {
 			ret = 0; // SYSCALL_TRACEPOINT is NOT flagged
 		} else {
 			ret = 1; // SYSCALL_TRACEPOINT is flagged
