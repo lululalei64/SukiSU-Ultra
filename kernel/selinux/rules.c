@@ -533,11 +533,11 @@ int handle_sepolicy(void __user *user_data, u64 data_len)
         pr_info("SELinux permissive or disabled when handle policy!\n");
     }
 
-    mutex_lock(&selinux_state.policy_mutex);
+    mutex_lock(&policy_mutex);
 
     old_pol = selinux_state.ss;
     pol = ksu_dup_sepolicy(rcu_dereference_protected(
-        old_pol, lockdep_is_held(&selinux_state.policy_mutex)));
+        old_pol, lockdep_is_held(&policy_mutex)));
     if (!pol) {
         ret = -ENOMEM;
         goto out_unlock;
@@ -598,7 +598,7 @@ int handle_sepolicy(void __user *user_data, u64 data_len)
 out_drop_new_policy:
     ksu_destroy_sepolicy(pol);
 out_unlock:
-    mutex_unlock(&selinux_state.policy_mutex);
+    mutex_unlock(&policy_mutex);
 out_free:
     kvfree(payload);
 
