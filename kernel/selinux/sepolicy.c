@@ -9,8 +9,8 @@
 #include <linux/slab.h>
 #include <linux/version.h>
 #include <linux/flex_array.h>
-#include "security/selinux/include/objsec.h"
-#include "security/selinux/include/security.h"
+#include <objsec.h>
+#include <security.h>
 
 #include "sepolicy.h"
 #include "../klog.h" // IWYU pragma: keep
