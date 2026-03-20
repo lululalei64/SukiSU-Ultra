@@ -14,6 +14,8 @@
 #include "linux/lsm_audit.h" // IWYU pragma: keep
 #include "xfrm.h"
 
+extern struct mutex policy_mutex;
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
 #define SELINUX_POLICY_INSTEAD_SELINUX_SS
 #endif
@@ -43,16 +45,16 @@ static void reset_avc_cache()
 
 void apply_kernelsu_rules(void)
 {
-	struct selinux_ss *pol, *old_pol = selinux_state.policy;
+	struct selinux_ss *pol, *old_pol = selinux_state.ss;
 	struct policydb *db;
 
 	if (!getenforce()) {
 		pr_info("SELinux permissive or disabled, apply rules!\n");
 	}
 
-	mutex_lock(&selinux_state.policy_mutex);
+	mutex_lock(&policy_mutex);
     pol = ksu_dup_sepolicy(rcu_dereference_protected(
-        old_pol, lockdep_is_held(&selinux_state.policy_mutex)));
+        selinux_state.ss, lockdep_is_held(&policy_mutex)));
     if (!pol) {
         pr_err("failed to dup selinux_policy\n");
         goto out_unlock;
@@ -183,13 +185,13 @@ void apply_kernelsu_rules(void)
 	susfs_set_zygote_sid();
 #endif // #ifdef CONFIG_KSU_SUSFS
 
-	rcu_assign_pointer(selinux_state.policy, pol);
+	rcu_assign_pointer(selinux_state.ss, pol);
     synchronize_rcu();
     ksu_destroy_sepolicy(old_pol);
 
     reset_avc_cache();
 out_unlock:
-    mutex_unlock(&selinux_state.policy_mutex);
+    mutex_unlock(&policy_mutex);
 }
 
 #define KSU_SEPOLICY_MAX_BATCH_SIZE (8U * 1024U * 1024U)
@@ -533,7 +535,7 @@ int handle_sepolicy(void __user *user_data, u64 data_len)
 
     mutex_lock(&selinux_state.policy_mutex);
 
-    old_pol = selinux_state.policy;
+    old_pol = selinux_state.ss;
     pol = ksu_dup_sepolicy(rcu_dereference_protected(
         old_pol, lockdep_is_held(&selinux_state.policy_mutex)));
     if (!pol) {
@@ -586,7 +588,7 @@ int handle_sepolicy(void __user *user_data, u64 data_len)
         cmd_index++;
     }
 
-    rcu_assign_pointer(selinux_state.policy, pol);
+    rcu_assign_pointer(selinux_state.ss, pol);
     synchronize_rcu();
     ksu_destroy_sepolicy(old_pol);
     reset_avc_cache();
