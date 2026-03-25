@@ -1496,6 +1496,18 @@ void ksu_destroy_sepolicy(struct selinux_ss *pol)
     kfree(pol);
 }
 
+void ksu_free_policydb_contents(struct policydb *db)
+{
+    if (!db) return;
+
+    free_class_datum_partially(db);
+    avtab_destroy(&db->te_avtab);
+    free_role_datum_partially(db);
+    free_type_datum_partially(db);
+    free_permissive_map(db);
+    free_filename_trans(db);
+}
+
 struct selinux_ss *ksu_dup_sepolicy(struct selinux_ss *old_pol)
 {
     int ret;

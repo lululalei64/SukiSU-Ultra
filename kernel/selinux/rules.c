@@ -47,17 +47,15 @@ static void reset_avc_cache()
 void apply_kernelsu_rules(void)
 {
 	unsigned long flags;
-        struct selinux_ss *pol = &selinux_ss;
-        struct policydb *db;
-        struct selinux_ss *new_pol;
-        struct selinux_ss *old_pol_data;
+    struct selinux_ss *new_pol;
+    struct policydb old_db;
 
 	if (!getenforce()) {
 		pr_info("SELinux permissive or disabled, apply rules!\n");
 	}
 
 	write_lock_irqsave(&selinux_ss.policy_rwlock, flags);
-	new_pol = ksu_dup_sepolicy(pol);
+	new_pol = ksu_dup_sepolicy(&selinux_ss);
 
 	if (!new_pol) {
         pr_err("failed to dup selinux_policy\n");
@@ -65,7 +63,7 @@ void apply_kernelsu_rules(void)
         return;
     }
 
-    db = &pol->policydb;
+    db = &new_pol->policydb;
 
 	ksu_permissive(db, KERNEL_SU_DOMAIN);
 	ksu_typeattribute(db, KERNEL_SU_DOMAIN, "mlstrustedsubject");
@@ -190,12 +188,11 @@ void apply_kernelsu_rules(void)
 	susfs_set_zygote_sid();
 #endif // #ifdef CONFIG_KSU_SUSFS
 
-	rcu_assign_pointer(selinux_state.ss, pol);
-    synchronize_rcu();
-    ksu_destroy_sepolicy(old_pol);
-
+    old_db = selinux_ss.policydb;
+    selinux_ss.policydb = new_pol->policydb;
     write_unlock_irqrestore(&selinux_ss.policy_rwlock, flags);
-
+    ksu_free_policydb_contents(&old_db);
+    kfree(new_pol);
     reset_avc_cache();
 }
 
@@ -508,13 +505,15 @@ static int apply_one_sepolicy_cmd(struct policydb *db,
 
 int handle_sepolicy(void __user *user_data, u64 data_len)
 {
-    struct selinux_ss *pol, *old_pol;
+    struct selinux_ss *pol;
     struct policydb *db;
+    struct policydb old_db;
     struct sepol_batch_cursor cursor;
     u8 *payload;
     int ret;
     int success_cmd_count;
     u32 cmd_index;
+    unsigned long flags;
 
     if (!user_data || !data_len) {
         return -EINVAL;
@@ -534,15 +533,9 @@ int handle_sepolicy(void __user *user_data, u64 data_len)
         goto out_free;
     }
 
-    if (!getenforce()) {
-        pr_info("SELinux permissive or disabled when handle policy!\n");
-    }
+    write_lock_irqsave(&selinux_ss.policy_rwlock, flags);
+    pol = ksu_dup_sepolicy(&selinux_ss);
 
-    mutex_lock(&policy_mutex);
-
-    old_pol = selinux_state.ss;
-    pol = ksu_dup_sepolicy(rcu_dereference_protected(
-        old_pol, lockdep_is_held(&policy_mutex)));
     if (!pol) {
         ret = -ENOMEM;
         goto out_unlock;
@@ -593,17 +586,20 @@ int handle_sepolicy(void __user *user_data, u64 data_len)
         cmd_index++;
     }
 
-    rcu_assign_pointer(selinux_state.ss, pol);
-    synchronize_rcu();
-    ksu_destroy_sepolicy(old_pol);
+    old_db = selinux_ss.policydb;
+    selinux_ss.policydb = pol->policydb;
+    write_unlock_irqrestore(&selinux_ss.policy_rwlock, flags);
+    ksu_free_policydb_contents(&old_db);
+    kfree(pol);
     reset_avc_cache();
+
     ret = success_cmd_count;
-    goto out_unlock;
+    goto out_free;
 
 out_drop_new_policy:
     ksu_destroy_sepolicy(pol);
 out_unlock:
-    mutex_unlock(&policy_mutex);
+    write_unlock_irqrestore(&selinux_ss.policy_rwlock, flags);
 out_free:
     kvfree(payload);
 
