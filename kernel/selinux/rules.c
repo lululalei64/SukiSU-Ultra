@@ -6,6 +6,7 @@
 #include <linux/lockdep.h>
 #include <linux/slab.h>
 #include <linux/string.h>
+#include <linux/rwlock.h>
 
 #include "../klog.h" // IWYU pragma: keep
 #include "selinux.h"
@@ -14,7 +15,7 @@
 #include "linux/lsm_audit.h" // IWYU pragma: keep
 #include "xfrm.h"
 
-extern struct mutex policy_mutex;
+extern struct selinux_ss selinux_ss;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
 #define SELINUX_POLICY_INSTEAD_SELINUX_SS
@@ -45,19 +46,23 @@ static void reset_avc_cache()
 
 void apply_kernelsu_rules(void)
 {
-	struct selinux_ss *pol, *old_pol = selinux_state.ss;
-	struct policydb *db;
+	unsigned long flags;
+        struct selinux_ss *pol = &selinux_ss;
+        struct policydb *db;
+        struct selinux_ss *new_pol;
+        struct selinux_ss *old_pol_data;
 
 	if (!getenforce()) {
 		pr_info("SELinux permissive or disabled, apply rules!\n");
 	}
 
-	mutex_lock(&policy_mutex);
-    pol = ksu_dup_sepolicy(rcu_dereference_protected(
-        selinux_state.ss, lockdep_is_held(&policy_mutex)));
-    if (!pol) {
+	write_lock_irqsave(&selinux_ss.policy_rwlock, flags);
+	new_pol = ksu_dup_sepolicy(pol);
+
+	if (!new_pol) {
         pr_err("failed to dup selinux_policy\n");
-        goto out_unlock;
+        write_unlock_irqrestore(&selinux_ss.policy_rwlock, flags);
+        return;
     }
 
     db = &pol->policydb;
@@ -189,9 +194,9 @@ void apply_kernelsu_rules(void)
     synchronize_rcu();
     ksu_destroy_sepolicy(old_pol);
 
+    write_unlock_irqrestore(&selinux_ss.policy_rwlock, flags);
+
     reset_avc_cache();
-out_unlock:
-    mutex_unlock(&policy_mutex);
 }
 
 #define KSU_SEPOLICY_MAX_BATCH_SIZE (8U * 1024U * 1024U)
