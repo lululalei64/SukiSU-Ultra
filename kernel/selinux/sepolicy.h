@@ -9,7 +9,7 @@
 struct selinux_ss *ksu_dup_sepolicy(struct selinux_ss *old_pol);
 
 void ksu_destroy_sepolicy(struct selinux_ss *orig);
-void ksu_free_policydb_contents(struct policydb *db)
+void ksu_free_policydb_contents(struct policydb *db);
 
 // Operation on types
 bool ksu_type(struct policydb *db, const char *name, const char *attr);
