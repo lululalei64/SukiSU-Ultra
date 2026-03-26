@@ -47,6 +47,11 @@
 extern int ksu_observer_init(void);
 #endif
 
+#ifdef CONFIG_KSU
+bool ksu_vfs_read_hook __read_mostly = true;
+EXPORT_SYMBOL_GPL(ksu_vfs_read_hook);
+#endif
+
 bool ksu_module_mounted __read_mostly = false;
 bool ksu_boot_completed __read_mostly = false;
 
@@ -535,13 +540,14 @@ bool is_init_rc(struct file *fp)
 	return true;
 }
 
-void ksu_handle_sys_read(unsigned int fd)
+__attribute__((cold)) int ksu_handle_sys_read(unsigned int fd,
+                                char __user **buf_ptr, size_t *count_ptr)
 {
 	struct file *file = fget(fd);
 #if defined(CONFIG_KSU_SYSCALL_HOOK) || defined(CONFIG_KSU_MANUAL_HOOK) ||     \
 	defined(CONFIG_KSU_SUSFS)
 	if (!file) {
-		return;
+		return 0;
 	}
 
 	if (!is_init_rc(file)) {
@@ -580,7 +586,9 @@ void ksu_handle_sys_read(unsigned int fd)
 skip:
 	fput(file);
 #endif
+    return 0;
 }
+EXPORT_SYMBOL_GPL(ksu_handle_sys_read);
 
 static unsigned int volumedown_pressed_count = 0;
 
