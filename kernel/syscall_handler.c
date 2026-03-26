@@ -3,17 +3,20 @@
 #include <linux/printk.h>
 #include <linux/spinlock.h>
 #include <linux/kprobes.h>
+#include <linux/version.h>
 #include <linux/tracepoint.h>
 #include <linux/ptrace.h>
+#include <linux/sched.h>
 #include <linux/slab.h>
 #include <asm/syscall.h>
-#include <linux/version.h>
 
 #include "ksu.h"
-#include "ksud.h"
-#include "allowlist.h"
+#include "arch.h"
+#include "syscall_handler.h"
 #include "sucompat.h"
+#include "ksud.h"
 #include "app_profile.h"
+#include "allowlist.h"
 
 #include <trace/events/syscalls.h>
 // Tracepoint registration count management
