@@ -46,6 +46,9 @@ static void reset_avc_cache()
 
 void apply_kernelsu_rules(void)
 {
+
+    return;
+
 	unsigned long flags;
     struct selinux_ss *new_pol;
     struct policydb *db;
@@ -78,7 +81,7 @@ void apply_kernelsu_rules(void)
 	ksu_allow(db, KERNEL_SU_DOMAIN, KERNEL_SU_FILE, ALL, ALL);
 	ksu_allow(db, "init", KERNEL_SU_FILE, ALL, ALL);
 	ksu_allow(db, "zygote", KERNEL_SU_FILE, ALL, ALL);
-	
+
 	// Zygote permissions for Zygisk - using stock types only
 	ksu_allow(db, "zygote", "adb_data_file", "dir", "search");
 	ksu_allow(db, "zygote", "adb_data_file", "dir", "read");
@@ -89,16 +92,16 @@ void apply_kernelsu_rules(void)
 	ksu_allow(db, "zygote", "adb_data_file", "file", "execute_no_trans");
 	ksu_allow(db, "zygote", "adb_data_file", "file", "map");
 	ksu_allow(db, "zygote", "adb_data_file", "file", "getattr");
-	
+
 	// Allow zygote to execute system libraries (for module loading)
 	ksu_allow(db, "zygote", "system_file", "file", "execute");
 	ksu_allow(db, "zygote", "system_file", "file", "execute_no_trans");
 	ksu_allow(db, "zygote", "system_file", "file", "map");
-	
+
 	// Zygote ptrace capabilities (for injection)
 	ksu_allow(db, "zygote", "zygote", "capability", "sys_ptrace");
 	ksu_allow(db, "zygote", "zygote", "process", "ptrace");
-	
+
 	// Allow zygote to interact with KernelSU domain
 	ksu_allow(db, "zygote", KERNEL_SU_DOMAIN, "file", "read");
 	ksu_allow(db, "zygote", KERNEL_SU_DOMAIN, "file", "open");
