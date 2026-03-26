@@ -99,6 +99,7 @@ endif
 ifeq ($(CONFIG_KSU_SYSCALL_HOOK), y)
 $(info -- KernelSU: CONFIG_KSU_SYSCALL_HOOK)
 ccflags-y += -DCONFIG_KSU_SYSCALL_HOOK
+obj-y += syscall_handler.o
 endif
 
 ifeq ($(CONFIG_KSU_NONE_HOOK), y)
