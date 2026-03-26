@@ -7,6 +7,12 @@
 #include <linux/ptrace.h>
 #include <linux/slab.h>
 #include <asm/syscall.h>
+#include <linux/version.h>
+
+#include "ksu.h"
+#include "allowlist.h"
+#include "sucompat.h"
+#include "app_profile.h"
 
 #include <trace/events/syscalls.h>
 // Tracepoint registration count management
