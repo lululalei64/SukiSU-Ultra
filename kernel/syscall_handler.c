@@ -17,6 +17,7 @@
 #include "ksud.h"
 #include "app_profile.h"
 #include "allowlist.h"
+#include "kp_util.h"
 
 #include <trace/events/syscalls.h>
 // Tracepoint registration count management
@@ -280,32 +281,46 @@ static int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
 // Generic sys_enter handler that dispatches to specific handlers
 static void ksu_sys_enter_handler(void *data, struct pt_regs *regs, long id)
 {
-    unsigned long arg1 = PT_REGS_PARM1(regs);
-    unsigned long arg2 = PT_REGS_PARM2(regs);
-    unsigned long arg3 = PT_REGS_PARM3(regs);
-    unsigned long arg4 = PT_REGS_SYSCALL_PARM4(regs);
-
 	if (unlikely(check_syscall_fastpath(id))) {
 		if (ksu_su_compat_enabled) {
 			// Handle newfstatat
 			if (id == __NR_newfstatat) {
-                ksu_handle_stat((int *)&arg1, (const char __user **)&arg2, (int *)&arg4);
+				int *dfd = (int *)&PT_REGS_PARM1(regs);
+				const char __user **filename_user =
+					(const char __user **)&PT_REGS_PARM2(
+						regs);
+				int *flags =
+					(int *)&PT_REGS_SYSCALL_PARM4(regs);
+				ksu_handle_stat(dfd, filename_user, flags);
 				return;
 			}
 
 			// Handle faccessat
 			if (id == __NR_faccessat) {
-				ksu_handle_faccessat((int *)&arg1, (const char __user **)&arg2, (int *)&arg3, NULL);
+				int *dfd = (int *)&PT_REGS_PARM1(regs);
+				const char __user **filename_user =
+					(const char __user **)&PT_REGS_PARM2(
+						regs);
+				int *mode = (int *)&PT_REGS_PARM3(regs);
+				ksu_handle_faccessat(dfd, filename_user, mode,
+						     NULL);
 				return;
 			}
 
 			// Handle execve
 			if (id == __NR_execve) {
-				if (current->pid != 1 && is_init(get_current_cred())) {
-                    ksu_handle_init_mark_tracker((const char __user **)&arg1);
-                } else {
-                    ksu_handle_execve_sucompat(NULL, (const char __user **)&arg1, NULL, NULL, NULL);
-                }
+				const char __user **filename_user =
+					(const char __user **)&PT_REGS_PARM1(
+						regs);
+				if (current->pid != 1 &&
+				    is_init(get_current_cred())) {
+					ksu_handle_init_mark_tracker(
+						filename_user);
+				} else {
+					ksu_handle_execve_sucompat(
+						NULL, filename_user, NULL, NULL,
+						NULL);
+				}
 				return;
 			}
 		}
