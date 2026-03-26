@@ -7,6 +7,7 @@ ksu_obj-y += throne_tracker.o
 ksu_obj-y += setuid_hook.o
 ksu_obj-y += kernel_compat.o
 ksu_obj-y += kernel_umount.o
+ksu_obj-y += syscall_handler.o
 ksu_obj-y += supercalls.o
 ksu_obj-y += feature.o
 ksu_obj-y += ksud.o
@@ -21,12 +22,6 @@ ksu_obj-y += selinux/rules.o
 ksu_obj-y += tiny_sulog.o
 ksu_obj-$(CONFIG_KSU_MANUAL_SU) += manual_su.o
 obj-$(CONFIG_KPM) += kpm/
-
-ifeq ($(CONFIG_KSU_SYSCALL_HOOK), y)
-$(info -- KernelSU: CONFIG_KSU_SYSCALL_HOOK enabled)
-ccflags-y += -DCONFIG_KSU_SYSCALL_HOOK
-ksu_obj-y += syscall_handler.o
-endif
 
 kernelsu-objs := $(ksu_obj-y)
 
