@@ -48,7 +48,7 @@ extern int ksu_observer_init(void);
 #endif
 
 #ifdef CONFIG_KSU
-bool ksu_vfs_read_hook __read_mostly = false;
+bool ksu_vfs_read_hook __read_mostly = true;
 EXPORT_SYMBOL_GPL(ksu_vfs_read_hook);
 #endif
 

@@ -46,9 +46,6 @@ static void reset_avc_cache()
 
 void apply_kernelsu_rules(void)
 {
-
-    return;
-
 	unsigned long flags;
     struct selinux_ss *new_pol;
     struct policydb *db;
