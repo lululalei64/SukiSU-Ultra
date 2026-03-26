@@ -48,6 +48,7 @@ void apply_kernelsu_rules(void)
 {
 	unsigned long flags;
     struct selinux_ss *new_pol;
+    struct policydb *db;
     struct policydb old_db;
 
 	if (!getenforce()) {
