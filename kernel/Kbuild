@@ -7,6 +7,7 @@ ksu_obj-y += throne_tracker.o
 ksu_obj-y += setuid_hook.o
 ksu_obj-y += kernel_compat.o
 ksu_obj-y += kernel_umount.o
+ksu_obj-y += kp_util.o
 ksu_obj-y += syscall_handler.o
 ksu_obj-y += supercalls.o
 ksu_obj-y += feature.o
